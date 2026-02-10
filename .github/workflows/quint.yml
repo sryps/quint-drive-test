@@ -1,0 +1,114 @@
+name: Quint Spec
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'specs/**'
+      - '.github/workflows/quint.yml'
+  pull_request:
+    paths:
+      - 'specs/**'
+      - '.github/workflows/quint.yml'
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install -g @informalsystems/quint@0.30.0
+      - run: quint typecheck specs/insulinPump.qnt --main=insulinPumpDefault
+
+  safety-invariants:
+    name: Safety Invariants
+    needs: typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install -g @informalsystems/quint@0.30.0
+      - name: Check safetyInvariant
+        run: |
+          quint run specs/insulinPump.qnt \
+            --main=insulinPumpDefault \
+            --invariant=safetyInvariant \
+            --max-steps=200 \
+            --max-samples=10000
+
+  witnesses:
+    name: Witness – ${{ matrix.witness }}
+    needs: typecheck
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Liveness witnesses
+          - witness: canCompleteBolusDelivery
+            max-steps: 100
+          - witness: canRecoverFromAlarm
+            max-steps: 100
+          - witness: canResumeFromSuspension
+            max-steps: 100
+          - witness: canDeliverMultipleBoluses
+            max-steps: 200
+          - witness: canReachAlarmThenDeliver
+            max-steps: 100
+          # Reachability witnesses – Pump Modes
+          - witness: canReachMonitoring
+            max-steps: 100
+          - witness: canReachCalculatingDose
+            max-steps: 100
+          - witness: canReachDelivering
+            max-steps: 100
+          - witness: canReachSuspended
+            max-steps: 100
+          - witness: canReachAlarmActive
+            max-steps: 100
+          # Reachability witnesses – Alarm Conditions
+          - witness: canTriggerLowReservoir
+            max-steps: 100
+          - witness: canTriggerHighGlucose
+            max-steps: 100
+          - witness: canTriggerLowGlucose
+            max-steps: 100
+          - witness: canTriggerOcclusion
+            max-steps: 100
+          - witness: canTriggerMaxDoseExceeded
+            max-steps: 100
+          # Reachability witnesses – Configuration
+          - witness: canSetBasalRate
+            max-steps: 100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install -g @informalsystems/quint@0.30.0
+      - name: "Witness: ${{ matrix.witness }}"
+        run: |
+          # Witnesses use negated invariants — a VIOLATION means the scenario IS reachable (good).
+          # No violation means the scenario may be unreachable (bad).
+          output=$(quint run specs/insulinPump_witnesses.qnt \
+            --main=insulinPump_witnesses \
+            --invariant=${{ matrix.witness }} \
+            --max-steps=${{ matrix.max-steps }} \
+            --max-samples=10000 2>&1) || true
+
+          echo "$output"
+
+          if echo "$output" | grep -q '\[violation\]'; then
+            echo ""
+            echo "PASS: Witness '${{ matrix.witness }}' is reachable (violation found)."
+          else
+            echo ""
+            echo "FAIL: Witness '${{ matrix.witness }}' could not be reached."
+            echo "The spec may be overly constrained or the step budget too low."
+            exit 1
+          fi
