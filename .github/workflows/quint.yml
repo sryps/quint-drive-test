@@ -85,6 +85,21 @@ jobs:
           # Reachability witnesses – Configuration
           - witness: canSetBasalRate
             max-steps: 100
+          # Type variant witnesses
+          - witness: canReachIdle
+            max-steps: 100
+          - witness: canTriggerEmptyReservoir
+            max-steps: 100
+          - witness: canTriggerHardwareFault
+            max-steps: 100
+          - witness: canReachNoDelivery
+            max-steps: 100
+          - witness: canReachBasalDelivery
+            max-steps: 100
+          - witness: canReachBolusDelivery
+            max-steps: 100
+          - witness: canReachAlarmSeverityCritical
+            max-steps: 100
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -19,14 +19,22 @@ pub fn daily_dose_within_limit(state: &State) -> bool {
     state.total_delivered_today <= MAX_DAILY_DOSE
 }
 
-/// Quint: val deliveryOnlyWhenDelivering =
-///   (currentDelivery != NoDelivery) implies (mode == Delivering)
+/// Quint: val deliveryOnlyWhenDelivering = and {
+///   (currentDelivery == BolusDelivery) implies (mode == Delivering),
+///   (currentDelivery == BasalDelivery) implies (mode == Monitoring),
+/// }
 pub fn delivery_only_when_delivering(state: &State) -> bool {
-    if state.current_delivery != DeliveryType::NoDelivery {
+    let bolus_ok = if state.current_delivery == DeliveryType::BolusDelivery {
         state.mode == PumpMode::Delivering
     } else {
         true
-    }
+    };
+    let basal_ok = if state.current_delivery == DeliveryType::BasalDelivery {
+        state.mode == PumpMode::Monitoring
+    } else {
+        true
+    };
+    bolus_ok && basal_ok
 }
 
 /// Quint: val criticalAlarmStopsDelivery =

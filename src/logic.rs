@@ -154,6 +154,7 @@ pub fn request_bolus(state: &State, amount: InsulinUnits) -> TransitionResult {
                 mode: PumpMode::AlarmActive,
                 alarm_condition: check.reason,
                 alarm_acknowledged: false,
+                current_delivery: DeliveryType::NoDelivery,
                 ..state.clone()
             },
         }
@@ -163,6 +164,7 @@ pub fn request_bolus(state: &State, amount: InsulinUnits) -> TransitionResult {
             new_state: State {
                 mode: PumpMode::CalculatingDose,
                 pending_bolus: amount,
+                current_delivery: DeliveryType::NoDelivery,
                 ..state.clone()
             },
         }
@@ -382,6 +384,61 @@ pub fn start_basal(state: &State, rate: InsulinUnits) -> TransitionResult {
             success: true,
             new_state: State {
                 basal_rate: rate,
+                ..state.clone()
+            },
+        }
+    }
+}
+
+/// Quint: pure def deliverBasal(state)
+pub fn deliver_basal(state: &State) -> TransitionResult {
+    if state.mode != PumpMode::Monitoring || state.basal_rate <= 0 {
+        return TransitionResult {
+            success: false,
+            new_state: state.clone(),
+        };
+    }
+
+    if state.reservoir_level < state.basal_rate {
+        TransitionResult {
+            success: true,
+            new_state: State {
+                mode: PumpMode::AlarmActive,
+                alarm_condition: AlarmCondition::EmptyReservoir,
+                alarm_acknowledged: false,
+                current_delivery: DeliveryType::NoDelivery,
+                ..state.clone()
+            },
+        }
+    } else {
+        TransitionResult {
+            success: true,
+            new_state: State {
+                current_delivery: DeliveryType::BasalDelivery,
+                reservoir_level: state.reservoir_level - state.basal_rate,
+                total_delivered_today: state.total_delivered_today + state.basal_rate,
+                ..state.clone()
+            },
+        }
+    }
+}
+
+/// Quint: pure def detectHardwareFault(state)
+pub fn detect_hardware_fault(state: &State) -> TransitionResult {
+    if state.mode == PumpMode::Idle || state.mode == PumpMode::AlarmActive {
+        TransitionResult {
+            success: false,
+            new_state: state.clone(),
+        }
+    } else {
+        TransitionResult {
+            success: true,
+            new_state: State {
+                mode: PumpMode::AlarmActive,
+                alarm_condition: AlarmCondition::HardwareFault,
+                alarm_acknowledged: false,
+                current_delivery: DeliveryType::NoDelivery,
+                pending_bolus: 0,
                 ..state.clone()
             },
         }
@@ -658,5 +715,97 @@ mod tests {
         let r = start_basal(&monitoring, 50);
         assert!(r.success);
         assert_eq!(r.new_state.basal_rate, 50);
+    }
+
+    #[test]
+    fn test_deliver_basal() {
+        // Not enabled without basal rate
+        let monitoring = State {
+            mode: PumpMode::Monitoring,
+            ..default_state()
+        };
+        let r = deliver_basal(&monitoring);
+        assert!(!r.success);
+
+        // Delivers one increment at basal rate
+        let with_basal = State {
+            mode: PumpMode::Monitoring,
+            basal_rate: 50,
+            ..default_state()
+        };
+        let r = deliver_basal(&with_basal);
+        assert!(r.success);
+        assert_eq!(r.new_state.current_delivery, DeliveryType::BasalDelivery);
+        assert_eq!(r.new_state.reservoir_level, INITIAL_RESERVOIR - 50);
+        assert_eq!(r.new_state.total_delivered_today, 50);
+        assert_eq!(r.new_state.mode, PumpMode::Monitoring);
+
+        // Triggers EmptyReservoir when reservoir too low
+        let low_reservoir = State {
+            mode: PumpMode::Monitoring,
+            basal_rate: 50,
+            reservoir_level: 30,
+            ..default_state()
+        };
+        let r = deliver_basal(&low_reservoir);
+        assert!(r.success);
+        assert_eq!(r.new_state.mode, PumpMode::AlarmActive);
+        assert_eq!(r.new_state.alarm_condition, AlarmCondition::EmptyReservoir);
+    }
+
+    #[test]
+    fn test_detect_hardware_fault() {
+        // Not enabled in Idle
+        let idle = default_state();
+        let r = detect_hardware_fault(&idle);
+        assert!(!r.success);
+
+        // Not enabled in AlarmActive
+        let alarm = State {
+            mode: PumpMode::AlarmActive,
+            ..default_state()
+        };
+        let r = detect_hardware_fault(&alarm);
+        assert!(!r.success);
+
+        // Triggers in Monitoring
+        let monitoring = State {
+            mode: PumpMode::Monitoring,
+            ..default_state()
+        };
+        let r = detect_hardware_fault(&monitoring);
+        assert!(r.success);
+        assert_eq!(r.new_state.mode, PumpMode::AlarmActive);
+        assert_eq!(r.new_state.alarm_condition, AlarmCondition::HardwareFault);
+        assert_eq!(r.new_state.current_delivery, DeliveryType::NoDelivery);
+
+        // Triggers during delivery, stops it
+        let delivering = State {
+            mode: PumpMode::Delivering,
+            current_delivery: DeliveryType::BolusDelivery,
+            pending_bolus: 500,
+            ..default_state()
+        };
+        let r = detect_hardware_fault(&delivering);
+        assert!(r.success);
+        assert_eq!(r.new_state.mode, PumpMode::AlarmActive);
+        assert_eq!(r.new_state.current_delivery, DeliveryType::NoDelivery);
+        assert_eq!(r.new_state.pending_bolus, 0);
+    }
+
+    #[test]
+    fn test_request_bolus_clears_basal_delivery() {
+        // When basal delivery is active and bolus is requested,
+        // currentDelivery should be cleared
+        let basal_active = State {
+            mode: PumpMode::Monitoring,
+            current_delivery: DeliveryType::BasalDelivery,
+            basal_rate: 50,
+            ..default_state()
+        };
+        let r = request_bolus(&basal_active, 500);
+        assert!(r.success);
+        assert_eq!(r.new_state.mode, PumpMode::CalculatingDose);
+        assert_eq!(r.new_state.current_delivery, DeliveryType::NoDelivery);
     }
 }

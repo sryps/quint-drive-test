@@ -208,12 +208,14 @@ module insulinPump {
           mode: AlarmActive,
           alarmCondition: check.reason,
           alarmAcknowledged: false,
+          currentDelivery: NoDelivery,
         }}
       } else {
         { success: true, newState: {
           ...state,
           mode: CalculatingDose,
           pendingBolus: amount,
+          currentDelivery: NoDelivery,
         }}
       }
     }
@@ -378,7 +380,7 @@ module insulinPump {
     }
   }
 
-  /// Start basal delivery
+  /// Configure basal rate
   pure def startBasal(
     state: State,
     rate: InsulinUnits
@@ -387,6 +389,49 @@ module insulinPump {
       { success: false, newState: state }
     } else {
       { success: true, newState: { ...state, basalRate: rate } }
+    }
+  }
+
+  /// Deliver one basal increment (periodic background delivery)
+  pure def deliverBasal(
+    state: State
+  ): { success: bool, newState: State } = {
+    if (state.mode != Monitoring or state.basalRate <= 0) {
+      { success: false, newState: state }
+    } else if (state.reservoirLevel < state.basalRate) {
+      // Not enough insulin for basal delivery
+      { success: true, newState: {
+        ...state,
+        mode: AlarmActive,
+        alarmCondition: EmptyReservoir,
+        alarmAcknowledged: false,
+        currentDelivery: NoDelivery,
+      }}
+    } else {
+      { success: true, newState: {
+        ...state,
+        currentDelivery: BasalDelivery,
+        reservoirLevel: state.reservoirLevel - state.basalRate,
+        totalDeliveredToday: state.totalDeliveredToday + state.basalRate,
+      }}
+    }
+  }
+
+  /// Detect a hardware fault (nondeterministic — can occur in any active mode)
+  pure def detectHardwareFault(
+    state: State
+  ): { success: bool, newState: State } = {
+    if (state.mode == Idle or state.mode == AlarmActive) {
+      { success: false, newState: state }
+    } else {
+      { success: true, newState: {
+        ...state,
+        mode: AlarmActive,
+        alarmCondition: HardwareFault,
+        alarmAcknowledged: false,
+        currentDelivery: NoDelivery,
+        pendingBolus: 0,
+      }}
     }
   }
 
@@ -448,9 +493,11 @@ module insulinPump {
   /// Daily total delivery never exceeds the max
   val dailyDoseWithinLimit = totalDeliveredToday <= MAX_DAILY_DOSE
 
-  /// Delivery only occurs in Delivering mode
-  val deliveryOnlyWhenDelivering =
-    (currentDelivery != NoDelivery) implies (mode == Delivering)
+  /// Delivery only occurs in the correct mode
+  val deliveryOnlyWhenDelivering = and {
+    (currentDelivery == BolusDelivery) implies (mode == Delivering),
+    (currentDelivery == BasalDelivery) implies (mode == Monitoring),
+  }
 
   /// Critical alarms always halt delivery
   val criticalAlarmStopsDelivery =
@@ -546,6 +593,16 @@ module insulinPump {
     all { result.success, setState(result.newState) }
   }
 
+  action doDeliverBasal: bool = {
+    val result = deliverBasal(currentState)
+    all { result.success, setState(result.newState) }
+  }
+
+  action doDetectHardwareFault: bool = {
+    val result = detectHardwareFault(currentState)
+    all { result.success, setState(result.newState) }
+  }
+
   /// Main step: nondeterministically choose one action
   action step = any {
     doStartMonitoring,
@@ -559,6 +616,8 @@ module insulinPump {
     doSuspendPump,
     doResumePump,
     doStartBasal,
+    doDeliverBasal,
+    doDetectHardwareFault,
   }
 }
 

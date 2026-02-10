@@ -23,6 +23,8 @@ pub enum Action {
     SuspendPump,
     ResumePump,
     StartBasal,
+    DeliverBasal,
+    DetectHardwareFault,
 }
 
 const ALL_ACTIONS: &[Action] = &[
@@ -37,6 +39,8 @@ const ALL_ACTIONS: &[Action] = &[
     Action::SuspendPump,
     Action::ResumePump,
     Action::StartBasal,
+    Action::DeliverBasal,
+    Action::DetectHardwareFault,
 ];
 
 /// Quint: action init
@@ -98,6 +102,8 @@ fn execute_action(state: &State, action: Action, rng: &mut impl Rng) -> Transiti
             let rate = *BASAL_RATES.choose(rng).unwrap();
             logic::start_basal(state, rate)
         }
+        Action::DeliverBasal => logic::deliver_basal(state),
+        Action::DetectHardwareFault => logic::detect_hardware_fault(state),
     }
 }
 

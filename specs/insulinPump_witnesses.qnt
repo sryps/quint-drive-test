@@ -46,6 +46,15 @@
 //   canTriggerMaxDoseExceeded   - MaxDoseExceeded alarm is raised
 //   canSetBasalRate             - Basal rate is configured
 //
+// Type Variant Witnesses (7):
+//   canReachIdle                - PumpMode: Idle (covered by init)
+//   canTriggerEmptyReservoir    - AlarmCondition: EmptyReservoir
+//   canTriggerHardwareFault     - AlarmCondition: HardwareFault
+//   canReachNoDelivery          - DeliveryType: NoDelivery (covered by init)
+//   canReachBasalDelivery       - DeliveryType: BasalDelivery
+//   canReachBolusDelivery       - DeliveryType: BolusDelivery
+//   canReachAlarmSeverityCritical - AlarmSeverity: Critical alarm active
+//
 // ============================================================
 
 module insulinPump_witnesses {
@@ -170,4 +179,47 @@ module insulinPump_witnesses {
   // Witness: Basal rate configured (basalRate > 0)
   // EXPECTED: Invariant VIOLATION
   val canSetBasalRate: bool = not(basalRate > 0)
+
+  // ──────────────────────────────────────────────────────────
+  // TYPE VARIANT WITNESSES
+  // ──────────────────────────────────────────────────────────
+  // These verify every variant of each sum type is reachable.
+  // Variants already covered above are noted but not duplicated.
+
+  // -- PumpMode --
+  // Idle: covered by init state (mode starts as Idle)
+  // Monitoring, CalculatingDose, Delivering, Suspended, AlarmActive: covered above
+  val canReachIdle: bool = not(mode == Idle)
+
+  // -- AlarmCondition --
+  // NoAlarm, LowReservoir, HighGlucose, LowGlucose, Occlusion, MaxDoseExceeded: covered above
+
+  // EmptyReservoir: reservoir fully drained during delivery
+  // EXPECTED: Invariant VIOLATION
+  val canTriggerEmptyReservoir: bool = not(alarmCondition == EmptyReservoir)
+
+  // HardwareFault: no action currently triggers this alarm
+  // EXPECTED: No violation (dead variant — no action produces HardwareFault)
+  val canTriggerHardwareFault: bool = not(alarmCondition == HardwareFault)
+
+  // -- DeliveryType --
+  // NoDelivery: covered by init state (currentDelivery starts as NoDelivery)
+  val canReachNoDelivery: bool = not(currentDelivery == NoDelivery)
+
+  // BasalDelivery: basal insulin delivery active
+  // EXPECTED: No violation (dead variant — no action sets BasalDelivery)
+  val canReachBasalDelivery: bool = not(currentDelivery == BasalDelivery)
+
+  // BolusDelivery: bolus insulin delivery active
+  // EXPECTED: Invariant VIOLATION
+  val canReachBolusDelivery: bool = not(currentDelivery == BolusDelivery)
+
+  // -- AlarmSeverity (derived from alarmCondition via alarmSeverity()) --
+  // Advisory: alarmSeverity(LowReservoir) — covered via canTriggerLowReservoir
+  // Alert: alarmSeverity(HighGlucose) or alarmSeverity(LowGlucose) — covered above
+  // Critical: EmptyReservoir, Occlusion, or HardwareFault while in AlarmActive
+  // EXPECTED: Invariant VIOLATION (via EmptyReservoir or Occlusion)
+  val canReachAlarmSeverityCritical: bool = not(
+    mode == AlarmActive and isCriticalAlarm(alarmCondition)
+  )
 }
