@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: '20'
       - run: npm install -g @informalsystems/quint@0.30.0
-      - run: quint typecheck specs/insulinPump.qnt --main=insulinPumpDefault
+      - run: quint typecheck specs/insulinPump.qnt
 
   safety-invariants:
     name: Safety Invariants
