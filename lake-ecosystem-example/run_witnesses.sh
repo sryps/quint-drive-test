@@ -50,10 +50,10 @@ for witness in "${!WITNESSES[@]}"; do
 
   if echo "$output" | grep -q '\[violation\]'; then
     echo "PASS: $witness ($max_steps steps)"
-    ((passed++))
+    passed=$((passed + 1))
   else
     echo "FAIL: $witness ($max_steps steps)"
-    ((failed++))
+    failed=$((failed + 1))
     failures+=("$witness")
   fi
 done
