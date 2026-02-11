@@ -16,7 +16,11 @@
       "Bash(node -e \"const fs=require\\(''fs''\\); const y=require\\(''/usr/lib/node_modules/@informalsystems/quint/node_modules/yaml''\\); y.parse\\(fs.readFileSync\\(''/workspace/.github/workflows/quint.yml'',''utf8''\\)\\); console.log\\(''YAML valid''\\)\")",
       "Bash(pip install:*)",
       "Bash(npx yaml@2:*)",
-      "Bash(node -e \"try{JSON.parse\\(require\\(''child_process''\\).execSync\\(''npx -y js-yaml /workspace/.github/workflows/quint.yml''\\).toString\\(\\)\\); console.log\\(''YAML valid''\\)}catch\\(e\\){console.log\\(e.message\\)}\")"
+      "Bash(node -e \"try{JSON.parse\\(require\\(''child_process''\\).execSync\\(''npx -y js-yaml /workspace/.github/workflows/quint.yml''\\).toString\\(\\)\\); console.log\\(''YAML valid''\\)}catch\\(e\\){console.log\\(e.message\\)}\")",
+      "Bash(find:*)",
+      "mcp__quint-kb__quint_search_patterns",
+      "mcp__quint-kb__quint_get_doc",
+      "mcp__quint-kb__quint_get_builtin"
     ]
   },
   "enableAllProjectMcpServers": true,

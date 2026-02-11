@@ -55,6 +55,24 @@ module insulinPump {
   /// Insulin amount in units (scaled by 100 to avoid decimals, e.g. 150 = 1.50 units)
   type InsulinUnits = int
 
+  /// Labels for each transition, enabling deterministic trace replay.
+  /// Parameterized variants carry the nondeterministic choice so traces are replayable.
+  type ActionLabel =
+    | NoAction
+    | StartMonitoring
+    | ProcessGlucose(GlucoseLevel)
+    | RequestBolus(InsulinUnits)
+    | ConfirmDelivery
+    | DeliverIncrement
+    | HandleOcclusion
+    | CancelDelivery
+    | AcknowledgeAlarm
+    | SuspendPump
+    | ResumePump
+    | StartBasal(InsulinUnits)
+    | DeliverBasal
+    | DetectHardwareFault
+
   /// Full pump state
   type State = {
     mode: PumpMode,
@@ -449,6 +467,7 @@ module insulinPump {
   var alarmCondition: AlarmCondition
   var alarmAcknowledged: bool
   var totalDeliveredToday: InsulinUnits
+  var lastAction: ActionLabel
 
   /// Pack state variables into a State record
   val currentState: State = {
@@ -478,7 +497,10 @@ module insulinPump {
     totalDeliveredToday' = s.totalDeliveredToday,
   }
 
-  action unchanged_all = setState(currentState)
+  action unchanged_all = all {
+    setState(currentState),
+    lastAction' = lastAction,
+  }
 
   // =====================================================
   // INVARIANTS (Safety Properties)
@@ -532,75 +554,76 @@ module insulinPump {
     alarmCondition' = NoAlarm,
     alarmAcknowledged' = false,
     totalDeliveredToday' = 0,
+    lastAction' = NoAction,
   }
 
   action doStartMonitoring: bool = {
     val result = startMonitoring(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = StartMonitoring }
   }
 
   action doProcessGlucose: bool = {
     nondet reading = GLUCOSE_LEVELS.oneOf()
     val result = processGlucoseReading(currentState, reading)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = ProcessGlucose(reading) }
   }
 
   action doRequestBolus: bool = {
     nondet amount = BOLUS_AMOUNTS.oneOf()
     val result = requestBolus(currentState, amount)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = RequestBolus(amount) }
   }
 
   action doConfirmDelivery: bool = {
     val result = confirmDelivery(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = ConfirmDelivery }
   }
 
   action doDeliverIncrement: bool = {
     // Deliver in increments of 0.10 units
     val result = deliverIncrement(currentState, 10)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = DeliverIncrement }
   }
 
   action doHandleOcclusion: bool = {
     val result = handleOcclusion(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = HandleOcclusion }
   }
 
   action doCancelDelivery: bool = {
     val result = cancelDelivery(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = CancelDelivery }
   }
 
   action doAcknowledgeAlarm: bool = {
     val result = acknowledgeAlarm(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = AcknowledgeAlarm }
   }
 
   action doSuspendPump: bool = {
     val result = suspendPump(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = SuspendPump }
   }
 
   action doResumePump: bool = {
     val result = resumePump(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = ResumePump }
   }
 
   action doStartBasal: bool = {
     nondet rate = BASAL_RATES.oneOf()
     val result = startBasal(currentState, rate)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = StartBasal(rate) }
   }
 
   action doDeliverBasal: bool = {
     val result = deliverBasal(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = DeliverBasal }
   }
 
   action doDetectHardwareFault: bool = {
     val result = detectHardwareFault(currentState)
-    all { result.success, setState(result.newState) }
+    all { result.success, setState(result.newState), lastAction' = DetectHardwareFault }
   }
 
   /// Main step: nondeterministically choose one action

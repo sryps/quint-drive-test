@@ -59,9 +59,15 @@ pub fn init_state() -> State {
     }
 }
 
+/// Result of executing an action with its resolved label (including params).
+struct LabeledResult {
+    result: TransitionResult,
+    label: TransitionLabel,
+}
+
 /// Execute a single nondeterministic step, mirroring the Quint `step` action.
-/// Returns the action taken and whether the state actually changed.
-pub fn step(state: &State, rng: &mut impl Rng) -> (Action, State) {
+/// Returns the transition label (with resolved params) and the new state.
+pub fn step(state: &State, rng: &mut impl Rng) -> (TransitionLabel, State) {
     // Quint's `any { ... }` picks one enabled action nondeterministically.
     // We shuffle the action list and try each until one succeeds (changes state),
     // falling back to unchanged state if none are enabled.
@@ -69,41 +75,80 @@ pub fn step(state: &State, rng: &mut impl Rng) -> (Action, State) {
     actions.shuffle(rng);
 
     for action in &actions {
-        let result = execute_action(state, *action, rng);
-        if result.success {
-            return (*action, result.new_state);
+        let labeled = execute_action_labeled(state, *action, rng);
+        if labeled.result.success {
+            return (labeled.label, labeled.result.new_state);
         }
     }
 
     // No action was enabled — state is unchanged (matches Quint's unchanged_all fallback)
-    (actions[0], state.clone())
+    (TransitionLabel::NoAction, state.clone())
 }
 
-/// Execute a specific action with nondeterministic parameters.
-fn execute_action(state: &State, action: Action, rng: &mut impl Rng) -> TransitionResult {
+/// Execute a specific action with nondeterministic parameters, returning the resolved label.
+fn execute_action_labeled(state: &State, action: Action, rng: &mut impl Rng) -> LabeledResult {
     match action {
-        Action::StartMonitoring => logic::start_monitoring(state),
+        Action::StartMonitoring => LabeledResult {
+            result: logic::start_monitoring(state),
+            label: TransitionLabel::StartMonitoring,
+        },
         Action::ProcessGlucose => {
             let reading = *GLUCOSE_LEVELS.choose(rng).unwrap();
-            logic::process_glucose_reading(state, reading)
+            LabeledResult {
+                result: logic::process_glucose_reading(state, reading),
+                label: TransitionLabel::ProcessGlucose { reading },
+            }
         }
         Action::RequestBolus => {
             let amount = *BOLUS_AMOUNTS.choose(rng).unwrap();
-            logic::request_bolus(state, amount)
+            LabeledResult {
+                result: logic::request_bolus(state, amount),
+                label: TransitionLabel::RequestBolus { amount },
+            }
         }
-        Action::ConfirmDelivery => logic::confirm_delivery(state),
-        Action::DeliverIncrement => logic::deliver_increment(state, 10),
-        Action::HandleOcclusion => logic::handle_occlusion(state),
-        Action::CancelDelivery => logic::cancel_delivery(state),
-        Action::AcknowledgeAlarm => logic::acknowledge_alarm(state),
-        Action::SuspendPump => logic::suspend_pump(state),
-        Action::ResumePump => logic::resume_pump(state),
+        Action::ConfirmDelivery => LabeledResult {
+            result: logic::confirm_delivery(state),
+            label: TransitionLabel::ConfirmDelivery,
+        },
+        Action::DeliverIncrement => LabeledResult {
+            result: logic::deliver_increment(state, 10),
+            label: TransitionLabel::DeliverIncrement,
+        },
+        Action::HandleOcclusion => LabeledResult {
+            result: logic::handle_occlusion(state),
+            label: TransitionLabel::HandleOcclusion,
+        },
+        Action::CancelDelivery => LabeledResult {
+            result: logic::cancel_delivery(state),
+            label: TransitionLabel::CancelDelivery,
+        },
+        Action::AcknowledgeAlarm => LabeledResult {
+            result: logic::acknowledge_alarm(state),
+            label: TransitionLabel::AcknowledgeAlarm,
+        },
+        Action::SuspendPump => LabeledResult {
+            result: logic::suspend_pump(state),
+            label: TransitionLabel::SuspendPump,
+        },
+        Action::ResumePump => LabeledResult {
+            result: logic::resume_pump(state),
+            label: TransitionLabel::ResumePump,
+        },
         Action::StartBasal => {
             let rate = *BASAL_RATES.choose(rng).unwrap();
-            logic::start_basal(state, rate)
+            LabeledResult {
+                result: logic::start_basal(state, rate),
+                label: TransitionLabel::StartBasal { rate },
+            }
         }
-        Action::DeliverBasal => logic::deliver_basal(state),
-        Action::DetectHardwareFault => logic::detect_hardware_fault(state),
+        Action::DeliverBasal => LabeledResult {
+            result: logic::deliver_basal(state),
+            label: TransitionLabel::DeliverBasal,
+        },
+        Action::DetectHardwareFault => LabeledResult {
+            result: logic::detect_hardware_fault(state),
+            label: TransitionLabel::DetectHardwareFault,
+        },
     }
 }
 
@@ -134,12 +179,12 @@ pub fn run_trace(max_steps: usize, rng: &mut impl Rng, verbose: bool) -> TraceRe
     }
 
     for step_num in 1..=max_steps {
-        let (action, new_state) = step(&state, rng);
+        let (label, new_state) = step(&state, rng);
 
         if verbose {
             let changed = new_state != state;
             if changed {
-                println!("[State {}] {:?}", step_num, action);
+                println!("[State {}] {}", step_num, label);
                 println!("{}\n", new_state);
             }
         }

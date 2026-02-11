@@ -1,10 +1,7 @@
-mod constants;
-mod invariants;
-mod logic;
-mod simulator;
-mod types;
-
 use std::env;
+
+use insulin_pump_sim::invariants;
+use insulin_pump_sim::simulator;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

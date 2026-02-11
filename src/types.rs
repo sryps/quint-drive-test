@@ -66,6 +66,51 @@ pub struct State {
     pub total_delivered_today: InsulinUnits,
 }
 
+/// Labels for each transition, enabling deterministic trace replay.
+/// Quint: type ActionLabel
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransitionLabel {
+    NoAction,
+    StartMonitoring,
+    ProcessGlucose { reading: GlucoseLevel },
+    RequestBolus { amount: InsulinUnits },
+    ConfirmDelivery,
+    DeliverIncrement,
+    HandleOcclusion,
+    CancelDelivery,
+    AcknowledgeAlarm,
+    SuspendPump,
+    ResumePump,
+    StartBasal { rate: InsulinUnits },
+    DeliverBasal,
+    DetectHardwareFault,
+}
+
+impl std::fmt::Display for TransitionLabel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransitionLabel::NoAction => write!(f, "NoAction"),
+            TransitionLabel::StartMonitoring => write!(f, "StartMonitoring"),
+            TransitionLabel::ProcessGlucose { reading } => {
+                write!(f, "ProcessGlucose({})", reading)
+            }
+            TransitionLabel::RequestBolus { amount } => {
+                write!(f, "RequestBolus({})", amount)
+            }
+            TransitionLabel::ConfirmDelivery => write!(f, "ConfirmDelivery"),
+            TransitionLabel::DeliverIncrement => write!(f, "DeliverIncrement"),
+            TransitionLabel::HandleOcclusion => write!(f, "HandleOcclusion"),
+            TransitionLabel::CancelDelivery => write!(f, "CancelDelivery"),
+            TransitionLabel::AcknowledgeAlarm => write!(f, "AcknowledgeAlarm"),
+            TransitionLabel::SuspendPump => write!(f, "SuspendPump"),
+            TransitionLabel::ResumePump => write!(f, "ResumePump"),
+            TransitionLabel::StartBasal { rate } => write!(f, "StartBasal({})", rate),
+            TransitionLabel::DeliverBasal => write!(f, "DeliverBasal"),
+            TransitionLabel::DetectHardwareFault => write!(f, "DetectHardwareFault"),
+        }
+    }
+}
+
 /// Result of a pure transition function.
 /// Quint: { success: bool, newState: State }
 pub struct TransitionResult {
