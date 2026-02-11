@@ -20,7 +20,8 @@
       "Bash(find:*)",
       "mcp__quint-kb__quint_search_patterns",
       "mcp__quint-kb__quint_get_doc",
-      "mcp__quint-kb__quint_get_builtin"
+      "mcp__quint-kb__quint_get_builtin",
+      "Bash(ls:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
