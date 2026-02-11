@@ -1,15 +1,15 @@
-name: Quint Spec
+name: Lake Ecosystem Quint Spec
 
 on:
   push:
     branches: [main, master]
     paths:
-      - 'insulin-pump-example/specs/**'
-      - '.github/workflows/quint.yml'
+      - 'lake-ecosystem-example/specs/**'
+      - '.github/workflows/lake-ecosystem.yml'
   pull_request:
     paths:
-      - 'insulin-pump-example/specs/**'
-      - '.github/workflows/quint.yml'
+      - 'lake-ecosystem-example/specs/**'
+      - '.github/workflows/lake-ecosystem.yml'
 
 jobs:
   typecheck:
@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: '20'
       - run: npm install -g @informalsystems/quint@0.30.0
-      - run: quint typecheck insulin-pump-example/specs/insulinPump.qnt
+      - run: quint typecheck lake-ecosystem-example/specs/lakeEcosystem.qnt
 
   safety-invariants:
     name: Safety Invariants
@@ -35,8 +35,8 @@ jobs:
       - run: npm install -g @informalsystems/quint@0.30.0
       - name: Check safetyInvariant
         run: |
-          quint run insulin-pump-example/specs/insulinPump.qnt \
-            --main=insulinPumpDefault \
+          quint run lake-ecosystem-example/specs/lakeEcosystem.qnt \
+            --main=lakeEcosystemDefault \
             --invariant=safetyInvariant \
             --max-steps=200 \
             --max-samples=10000
@@ -50,56 +50,52 @@ jobs:
       matrix:
         include:
           # Liveness witnesses
-          - witness: canCompleteBolusDelivery
-            max-steps: 100
-          - witness: canRecoverFromAlarm
-            max-steps: 100
-          - witness: canResumeFromSuspension
-            max-steps: 100
-          - witness: canDeliverMultipleBoluses
+          - witness: canReachAlgaeBloom
             max-steps: 200
-          - witness: canReachAlarmThenDeliver
+          - witness: canReachFishKill
             max-steps: 100
-          # Reachability witnesses – Pump Modes
-          - witness: canReachMonitoring
+          - witness: canCompleteSeason
             max-steps: 100
-          - witness: canReachCalculatingDose
+          - witness: canRecoverFromStress
             max-steps: 100
-          - witness: canReachDelivering
+          - witness: canReachEutrophication
+            max-steps: 200
+          # Season witnesses
+          - witness: canReachSpring
             max-steps: 100
-          - witness: canReachSuspended
+          - witness: canReachSummer
             max-steps: 100
-          - witness: canReachAlarmActive
+          - witness: canReachAutumn
             max-steps: 100
-          # Reachability witnesses – Alarm Conditions
-          - witness: canTriggerLowReservoir
+          - witness: canReachWinter
             max-steps: 100
-          - witness: canTriggerHighGlucose
+          # Health state witnesses
+          - witness: canReachHealthy
             max-steps: 100
-          - witness: canTriggerLowGlucose
+          - witness: canReachStressed
             max-steps: 100
-          - witness: canTriggerOcclusion
+          - witness: canReachAlgaeBloomHealth
+            max-steps: 200
+          - witness: canReachOxygenCrisis
             max-steps: 100
-          - witness: canTriggerMaxDoseExceeded
+          # Ecological event witnesses
+          - witness: canReachMinnowSpawn
             max-steps: 100
-          # Reachability witnesses – Configuration
-          - witness: canSetBasalRate
+          - witness: canReachWalleyeSpawn
             max-steps: 100
-          # Type variant witnesses
-          - witness: canReachIdle
+          - witness: canReachDetritus
             max-steps: 100
-          - witness: canTriggerEmptyReservoir
+          - witness: canReachLowOxygen
             max-steps: 100
-          - witness: canTriggerHardwareFault
+          - witness: canReachHighNutrients
             max-steps: 100
-          - witness: canReachNoDelivery
+          - witness: canReachNutrientDepletion
             max-steps: 100
-          - witness: canReachBasalDelivery
+          - witness: canReachDecomposition
             max-steps: 100
-          - witness: canReachBolusDelivery
-            max-steps: 100
-          - witness: canReachAlarmSeverityCritical
-            max-steps: 100
+          # Causal chain witnesses
+          - witness: canSeeAlgaeKillWalleye
+            max-steps: 200
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -110,8 +106,8 @@ jobs:
         run: |
           # Witnesses use negated invariants — a VIOLATION means the scenario IS reachable (good).
           # No violation means the scenario may be unreachable (bad).
-          output=$(quint run insulin-pump-example/specs/insulinPump_witnesses.qnt \
-            --main=insulinPump_witnesses \
+          output=$(quint run lake-ecosystem-example/specs/lakeEcosystem_witnesses.qnt \
+            --main=lakeEcosystem_witnesses \
             --invariant=${{ matrix.witness }} \
             --max-steps=${{ matrix.max-steps }} \
             --max-samples=10000 2>&1) || true

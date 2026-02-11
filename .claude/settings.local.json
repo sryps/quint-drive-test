@@ -21,7 +21,9 @@
       "mcp__quint-kb__quint_search_patterns",
       "mcp__quint-kb__quint_get_doc",
       "mcp__quint-kb__quint_get_builtin",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "mcp__quint-kb__quint_list_builtins",
+      "Bash(chmod:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
