@@ -23,7 +23,14 @@
       "mcp__quint-kb__quint_get_builtin",
       "Bash(ls:*)",
       "mcp__quint-kb__quint_list_builtins",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "mcp__quint-kb__quint_suggest_framework",
+      "Bash(npx --yes @informalsystems/quint typecheck:*)",
+      "Bash(npx @informalsystems/quint typecheck:*)",
+      "Bash(npx @informalsystems/quint run:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
